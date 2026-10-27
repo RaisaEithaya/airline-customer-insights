@@ -1,0 +1,56 @@
+// =====================================================================
+// Airline Customer Insights: Power BI DAX measures
+// Tables: 'pipeline surveys', 'pipeline complaints', 'pipeline flights', 'pipeline routes'
+// =====================================================================
+
+Total Surveys = COUNTROWS ( 'pipeline surveys' )
+
+CSAT % =
+DIVIDE (
+    CALCULATE ( COUNTROWS ( 'pipeline surveys' ), 'pipeline surveys'[csat_score] >= 4 ),
+    CALCULATE ( COUNTROWS ( 'pipeline surveys' ), NOT ISBLANK ( 'pipeline surveys'[csat_score] ) )
+)
+
+// Blanks are filtered out first: in DAX a blank equals 0 in comparisons,
+// which would otherwise count unanswered surveys as detractors.
+NPS =
+VAR Answered = FILTER ( 'pipeline surveys', NOT ISBLANK ( 'pipeline surveys'[nps_score] ) )
+VAR Prom = COUNTROWS ( FILTER ( Answered, 'pipeline surveys'[nps_score] >= 9 ) )
+VAR Det  = COUNTROWS ( FILTER ( Answered, 'pipeline surveys'[nps_score] <= 6 ) )
+RETURN DIVIDE ( Prom - Det, COUNTROWS ( Answered ) ) * 100
+
+Avg CES = AVERAGE ( 'pipeline surveys'[ces_score] )
+
+Total Complaints = COUNTROWS ( 'pipeline complaints' )
+
+FCR % =
+DIVIDE (
+    CALCULATE ( COUNTROWS ( 'pipeline complaints' ),
+        'pipeline complaints'[contact_count] = 1,
+        'pipeline complaints'[resolved] = "Yes" ),
+    COUNTROWS ( 'pipeline complaints' )
+)
+
+Unresolved Complaints =
+CALCULATE ( COUNTROWS ( 'pipeline complaints' ), 'pipeline complaints'[resolved] = "No" )
+
+Avg Resolution Days = AVERAGE ( 'pipeline complaints'[resolution_days] )
+
+Total Passengers = SUM ( 'pipeline flights'[passengers] )
+
+Complaints per 1K Pax = DIVIDE ( [Total Complaints], [Total Passengers] ) * 1000
+
+Repeat Complainers =
+COUNTROWS (
+    FILTER ( VALUES ( 'pipeline complaints'[customer_id] ),
+        CALCULATE ( COUNTROWS ( 'pipeline complaints' ) ) > 1 )
+)
+
+% of All Complaints =
+DIVIDE ( [Total Complaints], CALCULATE ( [Total Complaints], ALL ( 'pipeline routes' ) ) )
+
+CSAT Band =
+SWITCH ( TRUE (),
+    [CSAT %] >= 0.75, "Good",
+    [CSAT %] >= 0.65, "Watch",
+    "Act now" )
